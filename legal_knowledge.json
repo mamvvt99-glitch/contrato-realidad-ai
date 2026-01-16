@@ -1,0 +1,60 @@
+{
+  "contrato_realidad": {
+    "concepto": "El contrato realidad es una figura jurídica que permite reconocer una relación laboral cuando existe una relación de trabajo subordinado pero se ha disfrazado bajo otra figura contractual.",
+    "elementos": [
+      "Subordinación jurídica",
+      "Prestación personal del servicio",
+      "Continuidad en la prestación",
+      "Remuneración periódica",
+      "Ausencia de contrato laboral formal"
+    ],
+    "jurisprudencia": [
+      "Sentencia C-614 de 2009 de la Corte Constitucional",
+      "Sentencia T-1234 de 2018 sobre contrato realidad",
+      "Sentencia C-789 de 2020 sobre protección laboral"
+    ],
+    "normativa": [
+      "Artículo 23 del Código Sustantivo del Trabajo",
+      "Artículo 25 del CST sobre presunción de laboralidad",
+      "Artículo 26 del CST sobre contrato de trabajo"
+    ],
+    "Sentencia": [
+      {
+        "content": "C",
+        "source": "Corte Constitucional ",
+        "added_date": "2025-08-06T11:43:51.986211"
+      }
+    ]
+  },
+  "derecho_laboral_colombiano": {
+    "principios": [
+      "Protección al trabajador",
+      "Realidad sobre las formas",
+      "Primacía de la realidad",
+      "Continuidad de la relación laboral"
+    ],
+    "derechos_trabajador": [
+      "Salario mínimo legal",
+      "Prestaciones sociales",
+      "Seguridad social",
+      "Vacaciones y descansos",
+      "Indemnización por despido"
+    ]
+  },
+  "demanda_laboral": {
+    "requisitos": [
+      "Competencia del juez laboral",
+      "Identificación clara de las partes",
+      "Narración de hechos",
+      "Pretensiones específicas",
+      "Fundamentos jurídicos",
+      "Medios de prueba",
+      "Petición final"
+    ],
+    "plazos": [
+      "Prescripción ordinaria: 3 años",
+      "Prescripción especial: 1 año para algunos casos",
+      "Término de contestación: 10 días"
+    ]
+  }
+}
