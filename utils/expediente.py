@@ -68,21 +68,39 @@ def extraer_texto_pdf_ocr(pdf_file, usar_ocr: bool = True) -> Optional[str]:
     llama_cloud_api_key = os.getenv("LLAMA_CLOUD_API_KEY")
     
     if not llama_cloud_api_key:
-        st.warning("⚠️ No se encontró LLAMA_CLOUD_API_KEY en las variables de entorno.")
-        st.info("""
-        💡 **Para usar la API de LlamaIndex:**
-        1. Regístrate en https://www.llamaindex.ai/ para obtener una API key
-        2. Agrega la clave a tu archivo `.env`:
-           ```
-           LLAMA_CLOUD_API_KEY=tu_clave_aqui
-           ```
-        3. O configúrala como variable de entorno del sistema
-        """)
-        st.info("🔄 Intentando método alternativo de OCR (pytesseract)...")
-        # Intentar método alternativo
-        if hasattr(pdf_file, 'seek'):
-            pdf_file.seek(0)
-        return extraer_texto_pdf_ocr_alternativo(pdf_file)
+        # Verificar si estamos en Streamlit Cloud
+        if _is_streamlit_cloud():
+            st.error("❌ LLAMA_CLOUD_API_KEY no está configurada.")
+            st.info("""
+            💡 **Para usar OCR en Streamlit Cloud:**
+            
+            1. Ve a Advanced settings → Secrets en Streamlit Cloud
+            2. Agrega la siguiente variable:
+               ```
+               LLAMA_CLOUD_API_KEY = "llx-ICTkT2ClPcIAJyTU5u70qiNg9WfrekiEVkZNcFCAMd8JJp1L"
+               ```
+            3. Guarda y espera 1 minuto para que se propague
+            4. Recarga la aplicación
+            
+            **Nota:** El OCR local no funciona en Streamlit Cloud.
+            """)
+            return None
+        else:
+            st.warning("⚠️ No se encontró LLAMA_CLOUD_API_KEY en las variables de entorno.")
+            st.info("""
+            💡 **Para usar la API de LlamaIndex:**
+            1. Regístrate en https://www.llamaindex.ai/ para obtener una API key
+            2. Agrega la clave a tu archivo `.env`:
+               ```
+               LLAMA_CLOUD_API_KEY=tu_clave_aqui
+               ```
+            3. O configúrala como variable de entorno del sistema
+            """)
+            st.info("🔄 Intentando método alternativo de OCR (pytesseract)...")
+            # Intentar método alternativo solo si no estamos en cloud
+            if hasattr(pdf_file, 'seek'):
+                pdf_file.seek(0)
+            return extraer_texto_pdf_ocr_alternativo(pdf_file)
     
     # Guardar posición inicial del archivo
     if hasattr(pdf_file, 'seek'):
@@ -127,10 +145,15 @@ def extraer_texto_pdf_ocr(pdf_file, usar_ocr: bool = True) -> Optional[str]:
                     # Limpiar archivo temporal
                     if os.path.exists(tmp_path):
                         os.unlink(tmp_path)
-                    # Intentar método alternativo
-                    from io import BytesIO
-                    pdf_file_obj = BytesIO(pdf_content) if isinstance(pdf_content, bytes) else pdf_content
-                    return extraer_texto_pdf_ocr_alternativo(pdf_file_obj)
+                    # Intentar método alternativo solo si NO estamos en cloud
+                    if not _is_streamlit_cloud():
+                        from io import BytesIO
+                        pdf_file_obj = BytesIO(pdf_content) if isinstance(pdf_content, bytes) else pdf_content
+                        return extraer_texto_pdf_ocr_alternativo(pdf_file_obj)
+                    else:
+                        st.error("❌ La API de LlamaIndex no pudo procesar el archivo.")
+                        st.info("💡 Verifica que `LLAMA_CLOUD_API_KEY` esté correctamente configurada en los Secrets de Streamlit Cloud.")
+                        return None
             
             # Extraer texto de los documentos
             texto_completo = ""
@@ -152,11 +175,17 @@ def extraer_texto_pdf_ocr(pdf_file, usar_ocr: bool = True) -> Optional[str]:
             if texto_final and len(texto_final) > 50:
                 return texto_final
             else:
-                st.info("ℹ️ La API de LlamaIndex extrajo poco o ningún texto. Intentando método alternativo de OCR (pytesseract)...")
-                # Resetear el archivo para el método alternativo
-                from io import BytesIO
-                pdf_file_obj = BytesIO(pdf_content) if isinstance(pdf_content, bytes) else pdf_content
-                return extraer_texto_pdf_ocr_alternativo(pdf_file_obj)
+                # Solo intentar método alternativo si NO estamos en cloud
+                if not _is_streamlit_cloud():
+                    st.info("ℹ️ La API de LlamaIndex extrajo poco o ningún texto. Intentando método alternativo de OCR (pytesseract)...")
+                    # Resetear el archivo para el método alternativo
+                    from io import BytesIO
+                    pdf_file_obj = BytesIO(pdf_content) if isinstance(pdf_content, bytes) else pdf_content
+                    return extraer_texto_pdf_ocr_alternativo(pdf_file_obj)
+                else:
+                    st.warning("⚠️ La API de LlamaIndex no pudo extraer suficiente texto del PDF.")
+                    st.info("💡 Verifica que el PDF contenga imágenes legibles o intenta con otro documento.")
+                    return None
             
         except Exception as e:
             # Limpiar archivo temporal en caso de error
@@ -192,10 +221,23 @@ def extraer_texto_pdf_ocr(pdf_file, usar_ocr: bool = True) -> Optional[str]:
         pdf_file_obj = BytesIO(pdf_content) if isinstance(pdf_content, bytes) else pdf_content
         return extraer_texto_pdf_ocr_alternativo(pdf_file_obj)
 
+def _is_streamlit_cloud() -> bool:
+    """
+    Detecta si la app está corriendo en Streamlit Cloud.
+    
+    Returns:
+        True si está en Streamlit Cloud, False en caso contrario
+    """
+    import os
+    # Streamlit Cloud establece esta variable de entorno
+    return os.getenv("STREAMLIT_SHARING_MODE") == "True" or os.getenv("STREAMLIT_SERVER_PORT") is not None
+
 def extraer_texto_pdf_ocr_alternativo(pdf_file) -> Optional[str]:
     """
     Método alternativo de OCR usando pytesseract y pdf2image.
     Útil cuando LlamaIndex no está disponible o falla.
+    
+    NOTA: No funciona en Streamlit Cloud (requiere poppler y tesseract instalados).
     
     Args:
         pdf_file: Archivo PDF subido en Streamlit (puede ser BytesIO o file object)
@@ -203,6 +245,23 @@ def extraer_texto_pdf_ocr_alternativo(pdf_file) -> Optional[str]:
     Returns:
         Texto extraído del PDF o None si hay error
     """
+    # Verificar si estamos en Streamlit Cloud
+    if _is_streamlit_cloud():
+        st.error("❌ OCR local no está disponible en Streamlit Cloud.")
+        st.info("""
+        💡 **Solución:**
+        
+        Para usar OCR en Streamlit Cloud, necesitas configurar `LLAMA_CLOUD_API_KEY` 
+        en los Secrets de la aplicación. El OCR local (pytesseract) requiere 
+        dependencias del sistema que no están disponibles en cloud.
+        
+        **Configura en Streamlit Cloud:**
+        1. Ve a Advanced settings → Secrets
+        2. Agrega: `LLAMA_CLOUD_API_KEY = "tu_clave_aqui"`
+        3. Guarda y espera 1 minuto
+        """)
+        return None
+    
     try:
         import pytesseract
         from pdf2image import convert_from_bytes
@@ -236,8 +295,26 @@ def extraer_texto_pdf_ocr_alternativo(pdf_file) -> Optional[str]:
             try:
                 images = convert_from_bytes(pdf_content)
             except Exception as e:
-                st.error(f"❌ Error al convertir PDF a imágenes: {str(e)}")
-                st.info("💡 Asegúrate de tener poppler instalado:\n- macOS: `brew install poppler`\n- Linux: `sudo apt-get install poppler-utils`")
+                error_msg = str(e)
+                if "poppler" in error_msg.lower() or "page count" in error_msg.lower():
+                    if _is_streamlit_cloud():
+                        st.error("❌ OCR local no está disponible en Streamlit Cloud.")
+                        st.info("""
+                        💡 **Solución:**
+                        
+                        Para usar OCR en Streamlit Cloud, configura `LLAMA_CLOUD_API_KEY` 
+                        en los Secrets de la aplicación:
+                        
+                        1. Ve a Advanced settings → Secrets
+                        2. Agrega: `LLAMA_CLOUD_API_KEY = "llx-ICTkT2ClPcIAJyTU5u70qiNg9WfrekiEVkZNcFCAMd8JJp1L"`
+                        3. Guarda y espera 1 minuto
+                        4. Recarga la aplicación
+                        """)
+                    else:
+                        st.error(f"❌ Error al convertir PDF a imágenes: {error_msg}")
+                        st.info("💡 Asegúrate de tener poppler instalado:\n- macOS: `brew install poppler`\n- Linux: `sudo apt-get install poppler-utils`")
+                else:
+                    st.error(f"❌ Error al convertir PDF a imágenes: {error_msg}")
                 return None
         
         if not images:
@@ -386,12 +463,28 @@ def render_cargar_expediente():
             
             # Procesar según el tipo de archivo
             if uploaded_file.type == "application/pdf":
-                # Opción para usar OCR
-                usar_ocr = st.checkbox(
-                    "🔍 Usar OCR (para PDFs escaneados o con imágenes)",
-                    value=False,
-                    help="Activa esta opción si el PDF es una imagen escaneada o no se puede extraer texto normalmente"
-                )
+                # Verificar si estamos en Streamlit Cloud
+                es_cloud = _is_streamlit_cloud()
+                
+                if es_cloud:
+                    # En cloud, solo ofrecer OCR si hay API key de LlamaCloud
+                    llama_cloud_api_key = os.getenv("LLAMA_CLOUD_API_KEY")
+                    if llama_cloud_api_key:
+                        usar_ocr = st.checkbox(
+                            "🔍 Usar OCR (para PDFs escaneados o con imágenes)",
+                            value=False,
+                            help="Usa la API de LlamaCloud para extraer texto de PDFs escaneados"
+                        )
+                    else:
+                        st.info("💡 Para usar OCR en cloud, configura LLAMA_CLOUD_API_KEY en los Secrets de Streamlit Cloud")
+                        usar_ocr = False
+                else:
+                    # Opción para usar OCR
+                    usar_ocr = st.checkbox(
+                        "🔍 Usar OCR (para PDFs escaneados o con imágenes)",
+                        value=False,
+                        help="Activa esta opción si el PDF es una imagen escaneada o no se puede extraer texto normalmente"
+                    )
                 
                 if usar_ocr:
                     # Guardar el contenido del archivo en memoria para poder leerlo múltiples veces
