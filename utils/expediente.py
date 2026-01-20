@@ -138,8 +138,8 @@ def extraer_texto_pdf_ocr(pdf_file, usar_ocr: bool = True) -> Optional[str]:
             # Cargar documento usando la API
             with st.spinner("🔍 Procesando con LlamaCloud API (esto puede tomar varios minutos)..."):
                 try:
-                    # LlamaParse puede aceptar file_path o file
-                    documents = parser.load_data(file=tmp_path)
+                    # LlamaParse requiere file_path como parámetro
+                    documents = parser.load_data(file_path=tmp_path)
                 except Exception as load_error:
                     st.warning(f"⚠️ La API de LlamaIndex no pudo procesar el archivo: {str(load_error)}")
                     # Limpiar archivo temporal
